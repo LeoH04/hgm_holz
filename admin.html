@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HGM Holz Admin</title>
+    <link rel="stylesheet" href="/admin.css">
+    <script src="/admin.js" defer></script>
+  </head>
+  <body>
+    <header class="admin-header">
+      <div>
+        <p class="eyebrow">Admin</p>
+        <h1>Bestellungen</h1>
+      </div>
+      <div class="admin-actions">
+        <a href="/">Zur Webseite</a>
+        <form action="/api/admin/logout" method="post">
+          <button type="submit">Abmelden</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="admin-shell">
+      <section class="stats" aria-label="Bestellübersicht">
+        <article>
+          <span id="stat-total">0</span>
+          <p>Gesamt</p>
+        </article>
+        <article>
+          <span id="stat-new">0</span>
+          <p>Neu</p>
+        </article>
+        <article>
+          <span id="stat-contacted">0</span>
+          <p>Kontaktiert</p>
+        </article>
+        <article>
+          <span id="stat-done">0</span>
+          <p>Erledigt</p>
+        </article>
+      </section>
+
+      <section class="orders-section" aria-labelledby="orders-title">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Dashboard</p>
+            <h2 id="orders-title">Aktuelle Anfragen</h2>
+          </div>
+          <button id="refresh-button" type="button">Aktualisieren</button>
+        </div>
+
+        <div class="order-groups" id="orders-list">
+          <p class="empty-state">Bestellungen werden geladen ...</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

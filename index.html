@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>HGM Holz</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+  </head>
+  <body id="top">
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="Startseite">
+        <img class="brand__logo" src="assets/logo.png" alt="HGM Holz Logo">
+        <span class="brand__name">HGM Holz</span>
+      </a>
+
+      <nav class="site-nav" aria-label="Hauptnavigation">
+        <a href="#brennholz">Brennholz</a>
+        <a href="#bestellung">Bestellen</a>
+        <a href="#ablauf">Ablauf</a>
+        <a href="#ueber-uns">Über uns</a>
+        <a href="#kontakt">Kontakt</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-label="Einstieg">
+        <div class="hero__media" aria-hidden="true"></div>
+        <div class="hero__content">
+          <p class="eyebrow">Regionales Brennholz</p>
+          <h1>Brennholz für Ofen und Kamin</h1>
+          <p>
+            Sauber gespalten, gelagert und auf Anfrage zur Abholung oder Lieferung
+            vorbereitet.
+          </p>
+          <div class="hero__actions">
+            <a class="button button--primary" href="#bestellung">Bestellanfrage senden</a>
+            <a class="button button--secondary" href="#brennholz">Angebot ansehen</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section product" id="brennholz" aria-labelledby="brennholz-title">
+        <div class="section__inner">
+          <div class="section__header">
+            <p class="eyebrow">Angebot</p>
+            <h2 id="brennholz-title">Brennholz, das unkompliziert ankommt.</h2>
+            <p>
+              Die wichtigsten Angaben lassen sich später mit konkreten Holzarten,
+              Preisen und verfügbaren Mengen ergänzen.
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature-card">
+              <span class="feature-card__label">01</span>
+              <h3>Ofenfertig gespalten</h3>
+              <p>Brennholz in handlicher Scheitlänge für Kamin, Ofen und Feuerstelle.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-card__label">02</span>
+              <h3>Gelagert und sauber</h3>
+              <p>Ordentlich vorbereitetes Holz mit klarer Abstimmung vor der Ausgabe.</p>
+            </article>
+            <article class="feature-card">
+              <span class="feature-card__label">03</span>
+              <h3>Abholung oder Lieferung</h3>
+              <p>Die passende Übergabe wird nach Anfrage persönlich vereinbart.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section order" id="bestellung" aria-labelledby="bestellung-title">
+        <div class="section__inner section__inner--split">
+          <div class="order__intro">
+            <p class="eyebrow">Bestellanfrage</p>
+            <h2 id="bestellung-title">Schnell anfragen, persönlich abstimmen.</h2>
+            <p>
+              Das Formular sammelt alle wichtigen Angaben. Die Anfrage ist noch keine
+              verbindliche Bestellung.
+            </p>
+          </div>
+
+          <form class="order-form" action="/api/orders" method="post">
+            <div class="form-head">
+              <p>Anfrageformular</p>
+            </div>
+
+            <fieldset class="form-section">
+              <legend>Kontaktdaten</legend>
+              <div class="form-grid">
+                <label class="field">
+                  <span class="field__label">Name <span class="required">*</span></span>
+                  <input type="text" name="name" autocomplete="name" placeholder="Max Mustermann" required>
+                </label>
+                <label class="field">
+                  <span class="field__label">Telefon <span class="required">*</span></span>
+                  <input type="tel" name="telefon" autocomplete="tel" inputmode="tel" placeholder="+49 ..." required>
+                </label>
+                <label class="field">
+                  <span class="field__label">E-Mail</span>
+                  <input type="email" name="email" autocomplete="email" placeholder="name@example.de">
+                </label>
+                <label class="field">
+                  <span class="field__label">Ort / Lieferadresse</span>
+                  <input type="text" name="adresse" autocomplete="street-address" placeholder="Straße, PLZ, Ort">
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+              <legend>Bestellung</legend>
+              <div class="form-grid">
+                <label class="field">
+                  <span class="field__label">Gewünschte Menge <span class="required">*</span></span>
+                  <select name="menge" required>
+                    <option value="">Bitte auswählen</option>
+                    <option>1 Schüttraummeter</option>
+                    <option>2 Schüttraummeter</option>
+                    <option>3 Schüttraummeter</option>
+                    <option>Mehr als 3 Schüttraummeter</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span class="field__label">Übergabe <span class="required">*</span></span>
+                  <select name="uebergabe" required>
+                    <option value="">Bitte auswählen</option>
+                    <option>Lieferung gewünscht</option>
+                    <option>Abholung gewünscht</option>
+                    <option>Noch offen</option>
+                  </select>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset class="form-section">
+              <legend>Zusatzangaben</legend>
+              <label class="field">
+                <span class="field__label">Nachricht</span>
+                <textarea name="nachricht" rows="5" placeholder="Besondere Wünsche, Zeitraum oder Rückfragen"></textarea>
+              </label>
+            </fieldset>
+
+            <div class="hp-field" aria-hidden="true">
+              <label>
+                Website
+                <input type="text" name="website" tabindex="-1" autocomplete="off">
+              </label>
+            </div>
+
+            <label class="checkbox">
+              <input type="checkbox" name="datenschutz" required>
+              <span>Ich bin damit einverstanden, dass meine Angaben zur Bearbeitung der Anfrage genutzt werden. <strong>*</strong></span>
+            </label>
+
+            <div class="form-footer">
+              <p class="form-status" role="status" aria-live="polite"></p>
+              <button class="button button--primary" type="submit">Anfrage absenden</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="section process" id="ablauf" aria-labelledby="ablauf-title">
+        <div class="section__inner">
+          <div class="section__header">
+            <p class="eyebrow">Ablauf</p>
+            <h2 id="ablauf-title">Von der Anfrage bis zum Holzstapel.</h2>
+          </div>
+
+          <div class="steps">
+            <article>
+              <span>1</span>
+              <h3>Anfragen</h3>
+              <p>Menge, Ort und gewünschte Übergabe eintragen.</p>
+            </article>
+            <article>
+              <span>2</span>
+              <h3>Abstimmen</h3>
+              <p>Verfügbarkeit, Preis und Termin werden persönlich geklärt.</p>
+            </article>
+            <article>
+              <span>3</span>
+              <h3>Erhalten</h3>
+              <p>Das Brennholz wird abgeholt oder nach Vereinbarung geliefert.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section about" id="ueber-uns" aria-labelledby="ueber-uns-title">
+        <div class="section__inner section__inner--split">
+          <div class="about__content">
+            <p class="eyebrow">Über uns</p>
+            <h2 id="ueber-uns-title">Ein regionaler Ansprechpartner für Brennholz.</h2>
+            <p>
+              HGM Holz steht für eine einfache, direkte Abstimmung und Brennholz aus
+              der Region. Die Seite soll Kunden schnell zeigen, was verfügbar ist und
+              wie sie unkompliziert anfragen können.
+            </p>
+          </div>
+
+          <div class="faq" aria-label="Häufige Fragen">
+            <details>
+              <summary>Welche Holzart ist verfügbar?</summary>
+              <p>Die verfügbaren Holzarten können je nach Bestand variieren und werden nach Anfrage bestätigt.</p>
+            </details>
+            <details>
+              <summary>Kann das Brennholz geliefert werden?</summary>
+              <p>Lieferung ist nach Absprache möglich. Entfernung, Menge und Termin werden individuell abgestimmt.</p>
+            </details>
+            <details>
+              <summary>Ist die Anfrage verbindlich?</summary>
+              <p>Nein. Erst nach persönlicher Rückmeldung und Bestätigung entsteht eine verbindliche Bestellung.</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section class="section contact" id="kontakt" aria-labelledby="kontakt-title">
+        <div class="section__inner section__inner--split">
+          <div class="contact__content">
+            <p class="eyebrow">Kontakt</p>
+            <h2 id="kontakt-title">Fragen zum Brennholz?</h2>
+            <p>
+              Kontaktieren Sie uns gerne!
+            </p>
+          </div>
+          <div class="contact__box">
+            <p>Telefon: +49 152 33794467</p>
+            <p>E-Mail: jonathan.hegemann@gmx.de</p>
+            <p>Region: Stuttgart & Umgebung</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p>© HGM Holz</p>
+      <nav aria-label="Rechtliches">
+        <a href="#">Impressum</a>
+        <a href="#">Datenschutz</a>
+      </nav>
+    </footer>
+  </body>
+</html>
