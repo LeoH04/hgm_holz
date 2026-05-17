@@ -1,5 +1,6 @@
 const ordersList = document.querySelector("#orders-list");
 const refreshButton = document.querySelector("#refresh-button");
+const adminFeedback = document.querySelector("#admin-feedback");
 
 const statusLabels = {
   neu: "Neu",
@@ -63,6 +64,18 @@ function renderOrders(orders) {
   for (const select of ordersList.querySelectorAll("[data-status-select]")) {
     select.addEventListener("change", () => updateStatus(select.dataset.orderId, select.value));
   }
+
+  for (const button of ordersList.querySelectorAll("[data-delete-order]")) {
+    button.addEventListener("click", () => openDeleteConfirm(button.dataset.orderId));
+  }
+
+  for (const button of ordersList.querySelectorAll("[data-cancel-delete]")) {
+    button.addEventListener("click", () => closeDeleteConfirm(button.dataset.orderId));
+  }
+
+  for (const button of ordersList.querySelectorAll("[data-confirm-delete]")) {
+    button.addEventListener("click", () => deleteOrder(button.dataset.orderId, button.dataset.orderName));
+  }
 }
 
 function renderGroup(group, orders) {
@@ -115,6 +128,20 @@ function renderOrder(order) {
             <option value="${value}" ${order.status === value ? "selected" : ""}>${label}</option>
           `).join("")}
         </select>
+        <button class="delete-button" type="button" data-delete-order data-order-id="${order.id}" aria-expanded="false" aria-controls="delete-confirm-${order.id}" aria-label="Bestellung #${order.id} löschen">
+          Löschen
+        </button>
+        <div class="delete-confirm" id="delete-confirm-${order.id}" data-delete-confirm data-order-id="${order.id}" hidden>
+          <p>Bestellung #${order.id} von ${escapeHtml(order.name)} endgültig löschen?</p>
+          <div class="delete-confirm__actions">
+            <button class="delete-confirm__primary" type="button" data-confirm-delete data-order-id="${order.id}" data-order-name="${escapeHtml(order.name)}">
+              Endgültig löschen
+            </button>
+            <button class="delete-confirm__secondary" type="button" data-cancel-delete data-order-id="${order.id}">
+              Abbrechen
+            </button>
+          </div>
+        </div>
       </div>
     </article>
   `;
@@ -140,6 +167,61 @@ async function updateStatus(orderId, status) {
   await loadOrders();
 }
 
+function openDeleteConfirm(orderId) {
+  for (const panel of ordersList.querySelectorAll("[data-delete-confirm]")) {
+    const isActive = panel.dataset.orderId === orderId;
+    panel.hidden = !isActive;
+  }
+
+  for (const button of ordersList.querySelectorAll("[data-delete-order]")) {
+    button.setAttribute("aria-expanded", String(button.dataset.orderId === orderId));
+  }
+
+  ordersList.querySelector(`[data-confirm-delete][data-order-id="${orderId}"]`)?.focus();
+}
+
+function closeDeleteConfirm(orderId) {
+  const panel = ordersList.querySelector(`[data-delete-confirm][data-order-id="${orderId}"]`);
+  const trigger = ordersList.querySelector(`[data-delete-order][data-order-id="${orderId}"]`);
+
+  if (panel) panel.hidden = true;
+  if (trigger) {
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.focus();
+  }
+}
+
+async function deleteOrder(orderId, orderName) {
+  setFeedback("");
+
+  const response = await fetch(`/api/admin/orders/${orderId}`, {
+    method: "DELETE"
+  });
+
+  if (response.status === 401) {
+    window.location.href = "/admin/login";
+    return;
+  }
+
+  if (!response.ok) {
+    let message = "Bestellung konnte nicht gelöscht werden.";
+
+    try {
+      const result = await response.json();
+      message = result.error || message;
+    } catch {
+      // Der sichtbare Fallback reicht aus, falls keine JSON-Antwort kommt.
+    }
+
+    setFeedback(message, "error");
+    await loadOrders();
+    return;
+  }
+
+  await loadOrders();
+  setFeedback(`Bestellung #${orderId} von ${orderName} wurde gelöscht.`, "success");
+}
+
 function updateStats(orders) {
   document.querySelector("#stat-total").textContent = orders.length;
   document.querySelector("#stat-new").textContent = orders.filter((order) => order.status === "neu").length;
@@ -154,4 +236,10 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function setFeedback(message, type = "success") {
+  adminFeedback.textContent = message;
+  adminFeedback.hidden = !message;
+  adminFeedback.dataset.type = type;
 }

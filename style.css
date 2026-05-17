@@ -312,6 +312,44 @@ h3 {
   box-shadow: 0 26px 70px rgba(32, 34, 30, 0.1);
 }
 
+.order-form[hidden] {
+  display: none;
+}
+
+.order-confirmation {
+  display: grid;
+  align-content: center;
+  gap: 28px;
+  min-height: 420px;
+  padding: clamp(24px, 4vw, 38px);
+  border: 1px solid rgba(32, 34, 30, 0.12);
+  border-radius: 8px;
+  background: #fffbf4;
+  box-shadow: 0 26px 70px rgba(32, 34, 30, 0.1);
+}
+
+.order-confirmation[hidden] {
+  display: none;
+}
+
+.order-confirmation h3 {
+  max-width: 540px;
+  margin-top: 12px;
+  color: var(--forest-dark);
+  font-size: clamp(1.55rem, 3vw, 2.35rem);
+  line-height: 1.08;
+}
+
+.order-confirmation p:not(.eyebrow) {
+  max-width: 540px;
+  margin-top: 18px;
+  color: var(--muted);
+}
+
+.order-confirmation .button {
+  justify-self: start;
+}
+
 .form-head {
   display: flex;
   align-items: start;

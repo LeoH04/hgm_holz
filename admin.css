@@ -8,6 +8,7 @@
   --forest: #2d5a43;
   --forest-dark: #1f3c30;
   --wood: #9f6334;
+  --danger: #9c3e22;
 }
 
 * {
@@ -136,6 +137,22 @@ h2 {
   align-items: end;
   justify-content: space-between;
   gap: 24px;
+}
+
+.admin-feedback {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(45, 90, 67, 0.18);
+  border-radius: 4px;
+  background: rgba(45, 90, 67, 0.08);
+  color: var(--forest-dark);
+  font-weight: 800;
+}
+
+.admin-feedback[data-type="error"] {
+  border-color: rgba(156, 62, 34, 0.24);
+  background: rgba(156, 62, 34, 0.08);
+  color: var(--danger);
 }
 
 .order-groups {
@@ -277,6 +294,56 @@ h2 {
   font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.delete-button {
+  justify-self: start;
+  margin-top: 8px;
+  border-color: rgba(156, 62, 34, 0.26);
+  background: rgba(156, 62, 34, 0.08);
+  color: var(--danger);
+}
+
+.delete-button:hover,
+.delete-button:focus-visible {
+  border-color: rgba(156, 62, 34, 0.42);
+  background: rgba(156, 62, 34, 0.14);
+}
+
+.delete-confirm {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid rgba(156, 62, 34, 0.22);
+  border-radius: 8px;
+  background: rgba(156, 62, 34, 0.07);
+}
+
+.delete-confirm[hidden] {
+  display: none;
+}
+
+.delete-confirm p {
+  color: var(--ink);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.delete-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.delete-confirm__primary {
+  border-color: rgba(156, 62, 34, 0.42);
+  background: var(--danger);
+  color: var(--surface);
+}
+
+.delete-confirm__secondary {
+  background: transparent;
 }
 
 select {

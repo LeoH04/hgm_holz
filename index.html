@@ -98,8 +98,8 @@
                   <input type="tel" name="telefon" autocomplete="tel" inputmode="tel" placeholder="+49 ..." required>
                 </label>
                 <label class="field">
-                  <span class="field__label">E-Mail</span>
-                  <input type="email" name="email" autocomplete="email" placeholder="name@example.de">
+                  <span class="field__label">E-Mail <span class="required">*</span></span>
+                  <input type="email" name="email" autocomplete="email" placeholder="name@example.de" required>
                 </label>
                 <label class="field">
                   <span class="field__label">Ort / Lieferadresse</span>
@@ -158,6 +158,20 @@
               <button class="button button--primary" type="submit">Anfrage absenden</button>
             </div>
           </form>
+
+          <article class="order-confirmation" aria-live="polite" hidden>
+            <div>
+              <p class="eyebrow">Bestellanfrage gesendet</p>
+              <h3>Vielen Dank. Wir melden uns persönlich zur Abstimmung.</h3>
+              <p data-confirmation-message>
+                Deine Angaben sind angekommen. Eine verbindliche Bestellung entsteht erst nach unserer Rückmeldung
+                und Bestätigung.
+              </p>
+            </div>
+            <button class="button button--primary" type="button" data-new-order>
+              Weitere Bestellung anfragen
+            </button>
+          </article>
         </div>
       </section>
 

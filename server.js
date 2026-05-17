@@ -1,7 +1,9 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
+const net = require("node:net");
 const path = require("node:path");
+const tls = require("node:tls");
 const { URL } = require("node:url");
 const { DatabaseSync } = require("node:sqlite");
 
@@ -21,6 +23,7 @@ const SESSION_COOKIE = "hgm_admin_session";
 const SESSION_SECRET = process.env.SESSION_SECRET || ADMIN_PASSWORD;
 const SESSION_DURATION_MS = 8 * 60 * 60 * 1000;
 const COOKIE_SECURE = process.env.COOKIE_SECURE === "true";
+const MAIL_CONFIG = createMailConfig();
 
 if (!ADMIN_PASSWORD) {
   throw new Error("ADMIN_PASSWORD muss in Produktion gesetzt sein.");
@@ -28,6 +31,12 @@ if (!ADMIN_PASSWORD) {
 
 if (!process.env.ADMIN_PASSWORD) {
   console.warn("Admin nutzt das lokale Standardpasswort 'admin'. Vor Deployment in .env ändern.");
+}
+
+if (MAIL_CONFIG.enabled) {
+  console.log("Bestätigungs-E-Mails per SMTP aktiviert.");
+} else {
+  console.warn("SMTP nicht konfiguriert; Bestätigungs-E-Mails werden nicht versendet.");
 }
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -61,6 +70,7 @@ const listOrders = db.prepare(`
 `);
 
 const updateOrderStatus = db.prepare("UPDATE orders SET status = ? WHERE id = ?");
+const deleteOrder = db.prepare("DELETE FROM orders WHERE id = ?");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS admin_sessions (
@@ -171,8 +181,355 @@ async function handleCreateOrder(req, res) {
     order.uebergabe,
     order.nachricht
   );
+  const orderId = Number(result.lastInsertRowid);
 
-  sendJson(res, 201, { ok: true, id: Number(result.lastInsertRowid) });
+  queueOrderConfirmation(order, orderId);
+  sendJson(res, 201, { ok: true, id: orderId });
+}
+
+function queueOrderConfirmation(order, orderId) {
+  if (!MAIL_CONFIG.enabled) {
+    console.error(`Bestätigungs-E-Mail für Anfrage #${orderId} wurde nicht versendet: SMTP ist nicht konfiguriert.`);
+    return;
+  }
+
+  sendOrderConfirmation(order, orderId).catch((error) => {
+    console.error(`Bestätigungs-E-Mail für Anfrage #${orderId} konnte nicht gesendet werden: ${error.message}`);
+  });
+}
+
+async function sendOrderConfirmation(order, orderId) {
+  const subject = "Eingangsbestätigung deiner Brennholz-Anfrage";
+  const text = buildOrderConfirmationText(order, orderId);
+
+  await sendSmtpMail({
+    to: {
+      email: order.email,
+      name: order.name
+    },
+    subject,
+    text
+  });
+
+  console.log(`Bestätigungs-E-Mail für Anfrage #${orderId} gesendet.`);
+}
+
+function buildOrderConfirmationText(order, orderId) {
+  const details = [
+    `Anfragenummer: #${orderId}`,
+    `Name: ${order.name}`,
+    `Telefon: ${order.telefon}`,
+    order.email ? `E-Mail: ${order.email}` : "",
+    order.adresse ? `Ort / Lieferadresse: ${order.adresse}` : "",
+    `Gewünschte Menge: ${order.menge}`,
+    `Übergabe: ${order.uebergabe}`,
+    order.nachricht ? `Nachricht: ${order.nachricht}` : ""
+  ].filter(Boolean);
+
+  return [
+    `Hallo ${order.name},`,
+    "",
+    "vielen Dank für deine Brennholz-Anfrage. Wir haben sie erhalten und melden uns persönlich zur Abstimmung.",
+    "",
+    "Deine Angaben:",
+    ...details.map((detail) => `- ${detail}`),
+    "",
+    "Hinweis: Diese E-Mail bestätigt nur den Eingang deiner Anfrage. Eine verbindliche Bestellung entsteht erst nach unserer Rückmeldung und Bestätigung.",
+    "",
+    "Viele Grüße",
+    "HGM Holz"
+  ].join("\n");
+}
+
+async function sendSmtpMail({ to, subject, text }) {
+  const client = await connectSmtp(MAIL_CONFIG);
+  const fromAddress = extractEmailAddress(MAIL_CONFIG.from);
+  const recipientAddress = extractEmailAddress(to.email);
+
+  try {
+    let capabilities = await sayHello(client);
+
+    if (!MAIL_CONFIG.secure && capabilities.has("STARTTLS")) {
+      await client.command("STARTTLS", [220], "STARTTLS");
+      await client.upgradeToTls();
+      capabilities = await sayHello(client);
+    }
+
+    if (MAIL_CONFIG.user || MAIL_CONFIG.password) {
+      await authenticateSmtp(client, capabilities);
+    }
+
+    await client.command(`MAIL FROM:<${fromAddress}>`, [250], "MAIL FROM");
+    await client.command(`RCPT TO:<${recipientAddress}>`, [250, 251], "RCPT TO");
+    await client.command("DATA", [354], "DATA");
+    await client.sendData(buildEmailMessage({ to, subject, text }));
+    await client.command("QUIT", [221], "QUIT").catch(() => {});
+  } finally {
+    client.close();
+  }
+}
+
+async function sayHello(client) {
+  const response = await client.command(`EHLO ${MAIL_CONFIG.heloName}`, [250], "EHLO");
+  return parseSmtpCapabilities(response);
+}
+
+async function authenticateSmtp(client, capabilities) {
+  const authMethods = capabilities.get("AUTH") || "";
+
+  if (authMethods.includes("PLAIN") || authMethods === "") {
+    const token = Buffer.from(`\0${MAIL_CONFIG.user}\0${MAIL_CONFIG.password}`, "utf8").toString("base64");
+    await client.command(`AUTH PLAIN ${token}`, [235], "AUTH PLAIN");
+    return;
+  }
+
+  if (authMethods.includes("LOGIN")) {
+    await client.command("AUTH LOGIN", [334], "AUTH LOGIN");
+    await client.command(Buffer.from(MAIL_CONFIG.user, "utf8").toString("base64"), [334], "AUTH USER");
+    await client.command(Buffer.from(MAIL_CONFIG.password, "utf8").toString("base64"), [235], "AUTH PASSWORD");
+    return;
+  }
+
+  throw new Error("SMTP-Server unterstützt keine passende Authentifizierung.");
+}
+
+function buildEmailMessage({ to, subject, text }) {
+  const headers = [
+    ["From", formatAddressHeader(MAIL_CONFIG.from, MAIL_CONFIG.fromName)],
+    ["To", formatAddressHeader(to.email, to.name)],
+    ["Subject", encodeHeader(subject)],
+    ["Date", new Date().toUTCString()],
+    ["Message-ID", `<${crypto.randomUUID()}@${MAIL_CONFIG.heloName}>`],
+    ["MIME-Version", "1.0"],
+    ["Content-Type", "text/plain; charset=UTF-8"],
+    ["Content-Transfer-Encoding", "8bit"]
+  ];
+
+  if (MAIL_CONFIG.replyTo) {
+    headers.splice(2, 0, ["Reply-To", formatAddressHeader(MAIL_CONFIG.replyTo)]);
+  }
+
+  return `${headers.map(([name, value]) => `${name}: ${value}`).join("\r\n")}\r\n\r\n${text}`;
+}
+
+async function connectSmtp(config) {
+  let socket = config.secure
+    ? tls.connect({ host: config.host, port: config.port, servername: config.host })
+    : net.connect({ host: config.host, port: config.port });
+  let reader = createSmtpReader(socket, config.timeoutMs);
+
+  await waitForConnection(socket, config.secure);
+  const greeting = await reader.read();
+
+  if (greeting.code !== 220) {
+    throw new Error(`SMTP-Verbindung abgelehnt (${greeting.code}).`);
+  }
+
+  return {
+    async command(line, expectedCodes, label) {
+      socket.write(`${line}\r\n`);
+      const response = await reader.read();
+
+      if (!expectedCodes.includes(response.code)) {
+        throw new Error(`${label} fehlgeschlagen (${response.code}).`);
+      }
+
+      return response;
+    },
+    async sendData(rawMessage) {
+      socket.write(`${normalizeSmtpData(rawMessage)}\r\n.\r\n`);
+      const response = await reader.read();
+
+      if (response.code !== 250) {
+        throw new Error(`DATA fehlgeschlagen (${response.code}).`);
+      }
+    },
+    async upgradeToTls() {
+      reader.detach();
+      socket = tls.connect({ socket, servername: config.host });
+      reader = createSmtpReader(socket, config.timeoutMs);
+      await waitForConnection(socket, true);
+    },
+    close() {
+      reader.detach();
+      socket.end();
+    }
+  };
+}
+
+function createSmtpReader(socket, timeoutMs) {
+  let buffer = "";
+  let pending = null;
+
+  function onData(chunk) {
+    buffer += chunk.toString("utf8");
+    resolvePending();
+  }
+
+  function onError(error) {
+    rejectPending(error);
+  }
+
+  function onClose() {
+    rejectPending(new Error("SMTP-Verbindung wurde geschlossen."));
+  }
+
+  function resolvePending() {
+    if (!pending) return;
+
+    const parsed = parseSmtpResponse(buffer);
+    if (!parsed) return;
+
+    buffer = parsed.rest;
+    clearTimeout(pending.timer);
+    const resolve = pending.resolve;
+    pending = null;
+    resolve(parsed.response);
+  }
+
+  function rejectPending(error) {
+    if (!pending) return;
+
+    clearTimeout(pending.timer);
+    const reject = pending.reject;
+    pending = null;
+    reject(error);
+  }
+
+  socket.on("data", onData);
+  socket.on("error", onError);
+  socket.on("close", onClose);
+
+  return {
+    read() {
+      if (pending) {
+        return Promise.reject(new Error("SMTP-Antwort wird bereits gelesen."));
+      }
+
+      return new Promise((resolve, reject) => {
+        pending = {
+          resolve,
+          reject,
+          timer: setTimeout(() => rejectPending(new Error("SMTP-Antwort hat zu lange gedauert.")), timeoutMs)
+        };
+        resolvePending();
+      });
+    },
+    detach() {
+      socket.off("data", onData);
+      socket.off("error", onError);
+      socket.off("close", onClose);
+      rejectPending(new Error("SMTP-Reader wurde beendet."));
+    }
+  };
+}
+
+function parseSmtpResponse(buffer) {
+  const lines = buffer.split("\r\n");
+  if (!buffer.endsWith("\r\n")) lines.pop();
+
+  let consumedLength = 0;
+  const responseLines = [];
+
+  for (const line of lines) {
+    consumedLength += line.length + 2;
+    responseLines.push(line);
+
+    const match = line.match(/^(\d{3})\s/);
+    if (!match) continue;
+
+    return {
+      response: {
+        code: Number(match[1]),
+        lines: responseLines,
+        message: responseLines.map((responseLine) => responseLine.slice(4)).join("\n")
+      },
+      rest: buffer.slice(consumedLength)
+    };
+  }
+
+  return null;
+}
+
+function parseSmtpCapabilities(response) {
+  const capabilities = new Map();
+
+  for (const line of response.lines) {
+    const content = line.slice(4).trim();
+    if (!content) continue;
+
+    const [key, ...values] = content.split(/\s+/);
+    capabilities.set(key.toUpperCase(), values.join(" ").toUpperCase());
+  }
+
+  return capabilities;
+}
+
+function normalizeSmtpData(rawMessage) {
+  return rawMessage
+    .replace(/\r?\n/g, "\r\n")
+    .replace(/^\./gm, "..");
+}
+
+function waitForConnection(socket, isTls) {
+  return new Promise((resolve, reject) => {
+    const event = isTls ? "secureConnect" : "connect";
+
+    socket.once(event, resolve);
+    socket.once("error", reject);
+  });
+}
+
+function formatAddressHeader(email, displayName = "") {
+  const address = extractEmailAddress(email);
+  const name = cleanHeaderValue(displayName || extractDisplayName(email));
+
+  if (!name) return `<${address}>`;
+
+  return `${encodePhrase(name)} <${address}>`;
+}
+
+function extractEmailAddress(value) {
+  const text = String(value || "");
+  const wrapped = text.match(/<([^>]+)>/);
+  const email = wrapped ? wrapped[1] : text.match(/[^\s<>"]+@[^\s<>"]+/)?.[0];
+
+  if (!email) {
+    throw new Error("E-Mail-Adresse fehlt.");
+  }
+
+  return email.trim();
+}
+
+function extractDisplayName(value) {
+  return String(value || "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/["']/g, "")
+    .trim();
+}
+
+function encodeHeader(value) {
+  const cleanValue = cleanHeaderValue(value);
+
+  if (/^[\x20-\x7E]*$/.test(cleanValue)) {
+    return cleanValue;
+  }
+
+  return `=?UTF-8?B?${Buffer.from(cleanValue, "utf8").toString("base64")}?=`;
+}
+
+function encodePhrase(value) {
+  const cleanValue = cleanHeaderValue(value);
+
+  if (!/^[\x20-\x7E]*$/.test(cleanValue)) {
+    return encodeHeader(cleanValue);
+  }
+
+  return `"${cleanValue.replace(/["\\]/g, "\\$&")}"`;
+}
+
+function cleanHeaderValue(value) {
+  return String(value || "").replace(/[\r\n]+/g, " ").trim();
 }
 
 async function handleAdminApi(req, res, pathname) {
@@ -191,6 +548,17 @@ async function handleAdminApi(req, res, pathname) {
     }
 
     const result = updateOrderStatus.run(status, Number(statusMatch[1]));
+
+    if (result.changes === 0) {
+      return sendJson(res, 404, { error: "Bestellung nicht gefunden." });
+    }
+
+    return sendJson(res, 200, { ok: true });
+  }
+
+  const orderMatch = pathname.match(/^\/api\/admin\/orders\/(\d+)$/);
+  if (req.method === "DELETE" && orderMatch) {
+    const result = deleteOrder.run(Number(orderMatch[1]));
 
     if (result.changes === 0) {
       return sendJson(res, 404, { error: "Bestellung nicht gefunden." });
@@ -251,6 +619,36 @@ function handleAdminLogout(req, res) {
   res.end();
 }
 
+function createMailConfig() {
+  const host = cleanEnv(process.env.SMTP_HOST);
+  const from = cleanEnv(process.env.SMTP_FROM);
+  const secure = parseBoolean(process.env.SMTP_SECURE, Number(process.env.SMTP_PORT) === 465);
+  const port = Number(process.env.SMTP_PORT || (secure ? 465 : 587));
+
+  return {
+    enabled: Boolean(host && from),
+    host,
+    port,
+    secure,
+    user: cleanEnv(process.env.SMTP_USER),
+    password: process.env.SMTP_PASSWORD || "",
+    from,
+    fromName: cleanEnv(process.env.SMTP_FROM_NAME) || "HGM Holz",
+    replyTo: cleanEnv(process.env.SMTP_REPLY_TO),
+    heloName: cleanEnv(process.env.SMTP_HELO_NAME) || "hgm-holz.local",
+    timeoutMs: Number(process.env.SMTP_TIMEOUT_MS || 10000)
+  };
+}
+
+function cleanEnv(value) {
+  return String(value || "").trim();
+}
+
+function parseBoolean(value, fallback = false) {
+  if (value === undefined || value === "") return fallback;
+  return ["1", "true", "yes", "ja"].includes(String(value).trim().toLowerCase());
+}
+
 function validateOrder(body) {
   if (clean(body.website, 200)) {
     return { ok: true, honeypot: true };
@@ -266,11 +664,11 @@ function validateOrder(body) {
     nachricht: clean(body.nachricht, 1200)
   };
 
-  if (!order.name || !order.telefon || !order.menge || !order.uebergabe || body.datenschutz !== true) {
+  if (!order.name || !order.telefon || !order.email || !order.menge || !order.uebergabe || body.datenschutz !== true) {
     return { ok: false, error: "Bitte alle Pflichtfelder ausfüllen." };
   }
 
-  if (order.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.email)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.email)) {
     return { ok: false, error: "Bitte eine gültige E-Mail-Adresse eintragen." };
   }
 
